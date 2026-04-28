@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Редактировать мероприятие' if event else 'Добавить мероприятие' }}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{{ 'Редактировать мероприятие' if event else 'Добавить мероприятие' }}</h1>
+<div class="card shadow-sm"><div class="card-body">
+<form method="post" id="eventForm" class="row g-3">
+  <div class="col-md-7">
+    <label class="form-label">Название</label>
+    <input class="form-control" name="title" value="{{ event.title if event else '' }}" required>
+  </div>
+  <div class="col-md-5 d-flex align-items-stretch">
+    <div class="calendar-switch-card border rounded p-3 w-100">
+      <div class="form-check form-switch calendar-switch-check m-0">
+        <input class="form-check-input" type="checkbox" role="switch" id="is_shared" name="is_shared" {% if event and event.is_shared %}checked{% endif %}>
+      </div>
+      <div>
+        <label class="form-check-label fw-semibold mb-1" for="is_shared">Добавить в общий календарь</label>
+        <div class="small text-muted">Если выключено, событие остаётся только в вашем личном календаре. Если включено — оно попадёт в общий календарь для всех сотрудников.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6"><label class="form-label">Локация</label><input class="form-control" name="location" value="{{ event.location if event else '' }}"></div>
+  <div class="col-md-3"><label class="form-label">Начало</label><input type="datetime-local" class="form-control" name="starts_at" value="{{ event.starts_at.strftime('%Y-%m-%dT%H:%M') if event else '' }}" required></div>
+  <div class="col-md-3"><label class="form-label">Окончание</label><input type="datetime-local" class="form-control" name="ends_at" value="{{ event.ends_at.strftime('%Y-%m-%dT%H:%M') if event else '' }}" required></div>
+
+  <div id="sharedSettings" class="col-12 row g-3 mx-0 px-0 {% if not event or not event.is_shared %}d-none{% endif %}">
+    <div class="col-md-6">
+      <label class="form-label">Ответственный</label>
+      <select class="form-select" name="responsible_user_id" id="responsible_user_id">
+        <option value="">— Выберите сотрудника —</option>
+        {% for user in users %}
+          <option value="{{ user.id }}" {% if event and event.responsible_user_id == user.id %}selected{% endif %}>{{ user.full_name }}{% if user.department %} — {{ user.department }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-12">
+      <label class="form-label">Участники</label>
+      <div class="border rounded p-3 bg-light-subtle">
+        <div class="row g-2 mb-3 align-items-center">
+          <div class="col-md-5"><input type="text" class="form-control" id="participantSearch" placeholder="Поиск по ФИО или отделу"></div>
+          <div class="col-md-7 d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="selectAllParticipants">Выбрать всех</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="clearParticipants">Снять всех</button>
+            {% for department in departments %}
+              <button type="button" class="btn btn-sm btn-outline-dark select-department" data-department="{{ department }}">{{ department }}</button>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="small text-muted mb-2">Ответственный и создатель будут добавлены в участники автоматически.</div>
+        <div class="participant-grid" id="participantGrid">
+          {% set selected_ids = event.participants | map(attribute='id') | list if event else [] %}
+          {% for user in users %}
+            <label class="participant-item" data-name="{{ user.full_name|lower }}" data-department="{{ (user.department or '')|lower }}">
+              <input type="checkbox" name="participants" value="{{ user.id }}" {% if user.id in selected_ids %}checked{% endif %}>
+              <span>
+                <strong>{{ user.full_name }}</strong>
+                <small>{{ user.department or 'Без отдела' }}</small>
+              </span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12"><label class="form-label">Описание</label><textarea class="form-control" name="description" rows="5">{{ event.description if event else '' }}</textarea></div>
+  <div class="col-12"><button class="btn btn-primary">Сохранить</button> <a class="btn btn-outline-secondary" href="{{ url_for('calendar_view') }}">Назад</a></div>
+</form>
+</div></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const isSharedCheckbox = document.getElementById('is_shared');
+  const sharedSettings = document.getElementById('sharedSettings');
+  const participantSearch = document.getElementById('participantSearch');
+  const participantItems = Array.from(document.querySelectorAll('.participant-item'));
+  const participantCheckboxes = Array.from(document.querySelectorAll('input[name="participants"]'));
+  const responsibleSelect = document.getElementById('responsible_user_id');
+
+  function toggleSharedSettings() {
+    const isShared = isSharedCheckbox.checked;
+    sharedSettings.classList.toggle('d-none', !isShared);
+    if (!isShared) {
+      participantCheckboxes.forEach(cb => cb.checked = false);
+      if (responsibleSelect) responsibleSelect.value = '';
+    }
+  }
+
+  function filterParticipants() {
+    const search = (participantSearch?.value || '').trim().toLowerCase();
+    participantItems.forEach(item => {
+      const haystack = `${item.dataset.name} ${item.dataset.department}`;
+      item.classList.toggle('d-none', search && !haystack.includes(search));
+    });
+  }
+
+  document.getElementById('selectAllParticipants')?.addEventListener('click', () => {
+    participantItems.forEach(item => {
+      if (!item.classList.contains('d-none')) item.querySelector('input').checked = true;
+    });
+  });
+
+  document.getElementById('clearParticipants')?.addEventListener('click', () => {
+    participantCheckboxes.forEach(cb => cb.checked = false);
+  });
+
+  document.querySelectorAll('.select-department').forEach(button => {
+    button.addEventListener('click', () => {
+      const department = button.dataset.department.toLowerCase();
+      participantItems.forEach(item => {
+        if (item.dataset.department === department && !item.classList.contains('d-none')) {
+          item.querySelector('input').checked = true;
+        }
+      });
+    });
+  });
+
+  isSharedCheckbox?.addEventListener('change', toggleSharedSettings);
+  participantSearch?.addEventListener('input', filterParticipants);
+  toggleSharedSettings();
+</script>
+{% endblock %}

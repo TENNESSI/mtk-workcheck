@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Редактировать сотрудника' if user else 'Добавить сотрудника' }}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{{ 'Редактировать сотрудника' if user else 'Добавить сотрудника' }}</h1>
+<div class="card shadow-sm"><div class="card-body">
+<form method="post" class="row g-3">
+  <div class="col-md-6"><label class="form-label">ФИО</label><input class="form-control" name="full_name" value="{{ user.full_name if user else '' }}" required></div>
+  <div class="col-md-6"><label class="form-label">Логин</label><input class="form-control" name="username" value="{{ user.username if user else '' }}" required></div>
+  <div class="col-md-6"><label class="form-label">Новый пароль{% if not user %} *{% endif %}</label><input type="password" class="form-control" name="password" {% if not user %}required{% endif %}></div>
+  <div class="col-md-3"><label class="form-label">Роль</label><select class="form-select" name="role"><option value="employee" {% if user and not user.is_admin %}selected{% endif %}>Сотрудник</option><option value="admin" {% if user and user.is_admin %}selected{% endif %}>Админ</option></select></div>
+  <div class="col-md-3"><label class="form-label">Отдел</label><input class="form-control" name="department" value="{{ user.department if user else '' }}" placeholder="Например, Экскурсионный"></div>
+  <div class="col-12 form-check ms-2"><input class="form-check-input" type="checkbox" name="is_active_user" id="is_active_user" {% if not user or user.is_active_user %}checked{% endif %}><label class="form-check-label" for="is_active_user">Активный пользователь</label></div>
+  <div class="col-12"><button class="btn btn-primary">Сохранить</button> <a class="btn btn-outline-secondary" href="{{ url_for('users_list') }}">Назад</a></div>
+</form>
+</div></div>
+{% endblock %}

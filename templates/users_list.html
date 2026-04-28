@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Сотрудники{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">Сотрудники</h1>
+  <a class="btn btn-primary" href="{{ url_for('user_create') }}">Добавить сотрудника</a>
+</div>
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 align-middle">
+      <thead><tr><th>ФИО</th><th>Логин</th><th>Отдел</th><th>Роль</th><th>Статус</th><th></th></tr></thead>
+      <tbody>
+      {% for user in users %}
+        <tr>
+          <td>{{ user.full_name }}</td>
+          <td>{{ user.username }}</td>
+          <td>{{ user.department or '—' }}</td>
+          <td>{{ 'Админ' if user.is_admin else 'Сотрудник' }}</td>
+          <td>{{ 'Активен' if user.is_active_user else 'Отключён' }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('user_edit', user_id=user.id) }}">Редактировать</a>
+            <form method="post" action="{{ url_for('user_delete', user_id=user.id) }}" class="d-inline" onsubmit="return confirm('Удалить сотрудника?')">
+              <button class="btn btn-sm btn-outline-danger">Удалить</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

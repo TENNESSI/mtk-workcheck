@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}Календарь{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Календарь</h1>
+    <div class="text-muted">{{ month_name }} {{ year }}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ url_for('calendar_view', month=prev_month, year=prev_year, scope=calendar_scope) }}">← Предыдущий</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('calendar_view', scope=calendar_scope) }}">Сегодня</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('calendar_view', month=next_month_num, year=next_year, scope=calendar_scope) }}">Следующий →</a>
+    <a class="btn btn-primary" href="{{ url_for('event_create') }}">Добавить мероприятие</a>
+  </div>
+</div>
+
+<div class="mb-3 d-flex gap-2 flex-wrap">
+  <a class="btn {% if calendar_scope == 'all' %}btn-dark{% else %}btn-outline-dark{% endif %}" href="{{ url_for('calendar_view', month=month, year=year, scope='all') }}">Все доступные</a>
+  <a class="btn {% if calendar_scope == 'personal' %}btn-dark{% else %}btn-outline-dark{% endif %}" href="{{ url_for('calendar_view', month=month, year=year, scope='personal') }}">Мой календарь</a>
+  <a class="btn {% if calendar_scope == 'shared' %}btn-dark{% else %}btn-outline-dark{% endif %}" href="{{ url_for('calendar_view', month=month, year=year, scope='shared') }}">Общий</a>
+</div>
+
+<div class="calendar-grid mb-4">
+  {% for weekday in ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'] %}
+    <div class="calendar-weekday">{{ weekday }}</div>
+  {% endfor %}
+  {% for week in month_calendar %}
+    {% for day in week %}
+      {% set day_events = events_by_day.get(day, []) %}
+      {% set modal_id = 'dayEvents' ~ day.strftime('%Y%m%d') %}
+      <div class="calendar-day {% if day.month != month %}calendar-day-muted{% endif %}">
+        <div class="calendar-day-header">
+          <div class="calendar-day-number">{{ day.day }}</div>
+          {% if day_events|length %}
+            <span class="badge text-bg-light">{{ day_events|length }}</span>
+          {% endif %}
+        </div>
+        <div class="calendar-day-events">
+          {% for event in day_events[:3] %}
+            <a href="{{ url_for('event_detail', event_id=event.id) }}" class="event-card-mini text-decoration-none {% if event.is_shared %}event-shared{% else %}event-personal{% endif %}">
+              <div class="event-title fw-semibold text-dark">{{ event.title }}</div>
+              <div class="small text-muted event-meta-row">{{ event.location or 'Без локации' }}</div>
+              <div class="small text-muted event-meta-row">{{ event.starts_at|dt('%H:%M') }}–{{ event.ends_at|dt('%H:%M') }}</div>
+              <div class="small text-muted event-meta-row">{{ event.responsible_user.full_name if event.responsible_user else 'Не назначен' }}</div>
+            </a>
+          {% endfor %}
+
+          {% if day_events|length > 3 %}
+            <button type="button" class="btn btn-sm btn-outline-secondary calendar-more-btn" data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
+              Ещё {{ day_events|length - 3 }}
+            </button>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if day_events|length > 3 %}
+      <div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2 class="modal-title fs-5">Мероприятия на {{ day.strftime('%d.%m.%Y') }}</h2>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body d-flex flex-column gap-2">
+              {% for event in day_events %}
+                <a href="{{ url_for('event_detail', event_id=event.id) }}" class="event-card-mini text-decoration-none {% if event.is_shared %}event-shared{% else %}event-personal{% endif %}">
+                  <div class="event-title fw-semibold text-dark">{{ event.title }}</div>
+                  <div class="small text-muted event-meta-row">{{ event.location or 'Без локации' }}</div>
+                  <div class="small text-muted event-meta-row">{{ event.starts_at|dt('%H:%M') }}–{{ event.ends_at|dt('%H:%M') }}</div>
+                  <div class="small text-muted event-meta-row">{{ event.responsible_user.full_name if event.responsible_user else 'Не назначен' }}</div>
+                </a>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body small text-muted d-flex flex-wrap gap-3">
+    <span><span class="legend-dot legend-personal"></span> Личное событие</span>
+    <span><span class="legend-dot legend-shared"></span> Общее событие</span>
+    <span>Во вкладке «Мой календарь» показываются все события, где вы создатель, ответственный или участник.</span>
+  </div>
+</div>
+{% endblock %}

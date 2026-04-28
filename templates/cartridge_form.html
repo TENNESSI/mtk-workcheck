@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Редактировать картридж' if cartridge else 'Добавить картридж' }}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{{ 'Редактировать картридж' if cartridge else 'Добавить картридж' }}</h1>
+<div class="card shadow-sm"><div class="card-body">
+<form method="post" class="row g-3">
+  <div class="col-md-6"><label class="form-label">Название</label><input class="form-control" name="name" value="{{ cartridge.name if cartridge else '' }}" required></div>
+  <div class="col-md-6"><label class="form-label">Производитель</label><input class="form-control" name="vendor" value="{{ cartridge.vendor if cartridge else '' }}"></div>
+  <div class="col-md-6"><label class="form-label">Модели принтеров</label><input class="form-control" name="printer_models" value="{{ cartridge.printer_models if cartridge else '' }}"></div>
+  <div class="col-md-3"><label class="form-label">Остаток</label><input type="number" class="form-control" name="quantity_in_stock" value="{{ cartridge.quantity_in_stock if cartridge else 0 }}"></div>
+  <div class="col-md-3"><label class="form-label">Ожидают заправку</label><input type="number" class="form-control" name="quantity_waiting_refill" value="{{ cartridge.quantity_waiting_refill if cartridge else 0 }}"></div>
+  <div class="col-12"><label class="form-label">Примечания</label><textarea class="form-control" name="notes" rows="3">{{ cartridge.notes if cartridge else '' }}</textarea></div>
+  <div class="col-12"><button class="btn btn-primary">Сохранить</button> <a class="btn btn-outline-secondary" href="{{ url_for('cartridges_list') }}">Назад</a></div>
+</form>
+</div></div>
+{% endblock %}

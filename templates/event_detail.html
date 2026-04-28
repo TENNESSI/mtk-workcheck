@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}{{ event.title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <div class="text-muted small">{{ 'Общий календарь' if event.is_shared else 'Личный календарь' }}</div>
+    <h1 class="h3 mb-1">{{ event.title }}</h1>
+    <div class="text-muted">Создал: {{ event.creator.full_name }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    {% if event.can_edit(current_user) %}
+      <a class="btn btn-outline-primary" href="{{ url_for('event_edit', event_id=event.id) }}">Редактировать</a>
+      <form method="post" action="{{ url_for('event_delete', event_id=event.id) }}" onsubmit="return confirm('Удалить мероприятие?')">
+        <button class="btn btn-outline-danger">Удалить</button>
+      </form>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('calendar_view') }}">Назад</a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card shadow-sm"><div class="card-body">
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Локация</dt><dd class="col-sm-8">{{ event.location or 'Не указана' }}</dd>
+        <dt class="col-sm-4">Время</dt><dd class="col-sm-8">{{ event.starts_at|dt }} — {{ event.ends_at|dt }}</dd>
+        <dt class="col-sm-4">Ответственный</dt><dd class="col-sm-8">{{ event.responsible_user.full_name }}{% if event.responsible_user.department %} ({{ event.responsible_user.department }}){% endif %}</dd>
+        <dt class="col-sm-4">Описание</dt><dd class="col-sm-8">{{ event.description or 'Описание не указано.' }}</dd>
+      </dl>
+    </div></div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card shadow-sm"><div class="card-body">
+      <h2 class="h5 mb-3">Участники</h2>
+      {% if event.is_shared %}
+        <ul class="list-group list-group-flush">
+          {% for user in event.sorted_participants %}
+            <li class="list-group-item px-0">
+              <div class="fw-semibold">{{ user.full_name }}</div>
+              <div class="small text-muted">{{ user.department or 'Без отдела' }}</div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-muted mb-0">Личное мероприятие видит только владелец календаря.</p>
+      {% endif %}
+    </div></div>
+  </div>
+</div>
+{% endblock %}

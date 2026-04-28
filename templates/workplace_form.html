@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Редактировать рабочее место' if workplace else 'Добавить рабочее место' }}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{{ 'Редактировать рабочее место' if workplace else 'Добавить рабочее место' }}</h1>
+<div class="card shadow-sm"><div class="card-body">
+<form method="post" class="row g-3">
+  <div class="col-md-6"><label class="form-label">Название</label><input class="form-control" name="title" value="{{ workplace.title if workplace else '' }}" required></div>
+  <div class="col-md-6"><label class="form-label">Локация</label><input class="form-control" name="location" value="{{ workplace.location if workplace else '' }}" required></div>
+  <div class="col-md-6"><label class="form-label">Сотрудник</label>
+    <select class="form-select" name="employee_id">
+      <option value="">— Не назначен —</option>
+      {% for employee in employees %}
+      <option value="{{ employee.id }}" {% if workplace and workplace.employee_id == employee.id %}selected{% endif %}>{{ employee.full_name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-12"><label class="form-label">Описание</label><textarea class="form-control" name="description" rows="3">{{ workplace.description if workplace else '' }}</textarea></div>
+  <div class="col-12"><button class="btn btn-primary">Сохранить</button> <a class="btn btn-outline-secondary" href="{{ url_for('workplaces_list') }}">Назад</a></div>
+</form>
+</div></div>
+{% endblock %}

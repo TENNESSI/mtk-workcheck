@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Техосмотр{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Техосмотр компьютеров</h1>
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card shadow-sm"><div class="card-body">
+      <h2 class="h5 mb-3">Добавить запись</h2>
+      <form method="post" class="row g-3">
+        <div class="col-12"><label class="form-label">Техника</label><select class="form-select" name="equipment_item_id" required>{% for item in items %}<option value="{{ item.id }}">{{ item.display_name }}</option>{% endfor %}</select></div>
+        <div class="col-12"><label class="form-label">Дата</label><input type="date" class="form-control" name="performed_at" required></div>
+        <div class="col-12"><label class="form-label">Примечания</label><textarea class="form-control" name="notes" rows="3"></textarea></div>
+        <div class="col-12"><button class="btn btn-primary w-100">Добавить</button></div>
+      </form>
+    </div></div>
+  </div>
+  <div class="col-lg-8">
+    <div class="card shadow-sm mb-4"><div class="card-body">
+      <h2 class="h5 mb-3">Нужно почистить</h2>
+      {% if stale_computers %}
+      <ul class="list-group list-group-flush">
+      {% for item in stale_computers %}
+        <li class="list-group-item px-0 d-flex justify-content-between gap-3"><span>{{ item.display_name }}</span><span class="text-danger">{{ item.last_maintenance_date|d }}</span></li>
+      {% endfor %}
+      </ul>
+      {% else %}<p class="text-muted mb-0">Просроченных компьютеров нет.</p>{% endif %}
+    </div></div>
+    <div class="card shadow-sm"><div class="card-body">
+      <h2 class="h5 mb-3">Последние записи</h2>
+      <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Дата</th><th>Техника</th><th>Кто внёс</th><th>Примечание</th></tr></thead><tbody>{% for log in logs %}<tr><td>{{ log.performed_at|d }}</td><td>{{ log.equipment_item.display_name }}</td><td>{{ log.created_by.full_name }}</td><td>{{ log.notes or '—' }}</td></tr>{% endfor %}</tbody></table></div>
+    </div></div>
+  </div>
+</div>
+{% endblock %}

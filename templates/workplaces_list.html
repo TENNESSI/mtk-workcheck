@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Рабочие места{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h3 mb-0">Рабочие места</h1><a class="btn btn-primary" href="{{ url_for('workplace_create') }}">Добавить рабочее место</a></div>
+<div class="card shadow-sm"><div class="table-responsive">
+<table class="table table-hover mb-0 align-middle">
+<thead><tr><th>Название</th><th>Локация</th><th>Сотрудник</th><th>Описание</th><th></th></tr></thead>
+<tbody>
+{% for workplace in workplaces %}
+<tr>
+  <td>{{ workplace.title }}</td>
+  <td>{{ workplace.location }}</td>
+  <td>{{ workplace.employee.full_name if workplace.employee else '—' }}</td>
+  <td>{{ workplace.description or '—' }}</td>
+  <td class="text-end">
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('workplace_edit', workplace_id=workplace.id) }}">Редактировать</a>
+    <form method="post" action="{{ url_for('workplace_delete', workplace_id=workplace.id) }}" class="d-inline" onsubmit="return confirm('Удалить рабочее место?')">
+      <button class="btn btn-sm btn-outline-danger">Удалить</button>
+    </form>
+  </td>
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

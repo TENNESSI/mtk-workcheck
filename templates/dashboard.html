@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% block title %}Главная{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-4">
+  <div>
+    <h1 class="h3 mb-1">Главная</h1>
+    <p class="text-muted mb-0">Добро пожаловать, {{ current_user.full_name }}.</p>
+  </div>
+  <a class="btn btn-primary" href="{{ url_for('event_create') }}">Добавить мероприятие</a>
+</div>
+
+{% if current_user.is_admin %}
+<div class="row g-3 mb-4">
+  <div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small">Сотрудники</div><div class="display-6">{{ stats.users_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small">Рабочие места</div><div class="display-6">{{ stats.workplaces_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small">Техника</div><div class="display-6">{{ stats.equipment_count }}</div></div></div></div>
+  <div class="col-md-3"><div class="card shadow-sm h-100"><div class="card-body"><div class="text-muted small">Картриджи</div><div class="display-6">{{ stats.cartridges_count }}</div></div></div></div>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Ближайшие мероприятия</h2>
+          <a href="{{ url_for('calendar_view') }}">Открыть календарь</a>
+        </div>
+        {% if upcoming_events %}
+          <div class="list-group list-group-flush">
+            {% for event in upcoming_events %}
+              <a class="list-group-item list-group-item-action px-0" href="{{ url_for('event_detail', event_id=event.id) }}">
+                <div class="fw-semibold">{{ event.title }}</div>
+                <div class="small text-muted">{{ event.starts_at|dt }} — {{ event.ends_at|dt('%H:%M') }} · {{ event.location or 'Без локации' }}</div>
+                <div class="small text-muted">Ответственный: {{ event.responsible_user.full_name }}</div>
+              </a>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Пока нет ближайших мероприятий.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 class="h5 mb-0">Последние уведомления</h2>
+          <a href="{{ url_for('notifications_list') }}">Все уведомления</a>
+        </div>
+        {% if notifications %}
+          <div class="list-group list-group-flush">
+            {% for n in notifications %}
+              <div class="list-group-item px-0 {% if not n.is_read %}notification-unread{% endif %}">
+                <div class="fw-semibold">{{ n.title }}</div>
+                <div class="small">{{ n.message }}</div>
+                <div class="small text-muted">{{ n.created_at|dt }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Уведомлений нет.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Моё рабочее место</h2>
+        {% if workplace %}
+          <div class="fw-semibold">{{ workplace.title }}</div>
+          <div class="text-muted">{{ workplace.location }}</div>
+          <div class="mt-2">{{ workplace.description or 'Описание не указано.' }}</div>
+        {% else %}
+          <p class="text-muted mb-0">Рабочее место пока не назначено.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Моя техника</h2>
+        {% if equipment %}
+          <ul class="list-group list-group-flush">
+            {% for item in equipment %}
+              <li class="list-group-item px-0">
+                <div class="fw-semibold">{{ item.display_name }}</div>
+                <div class="small text-muted">{{ statuses.get(item.status, item.status) }}{% if item.asset_tag %} · № {{ item.asset_tag }}{% endif %}</div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">Выданной техники нет.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if current_user.is_admin %}
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Компьютеры, требующие техосмотра</h2>
+        {% if stale_computers %}
+          <ul class="list-group list-group-flush">
+            {% for item in stale_computers if item.maintenance_is_stale %}
+              <li class="list-group-item px-0">
+                <div class="fw-semibold">{{ item.display_name }}</div>
+                <div class="small text-danger">Последний техосмотр: {{ item.last_maintenance_date|d }}</div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">Все компьютеры обслужены вовремя.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Техника{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h3 mb-0">{{ 'Склад техники' if current_user.is_admin else 'Моя техника' }}</h1>
+  {% if current_user.is_admin %}<a class="btn btn-primary" href="{{ url_for('equipment_create') }}">Добавить технику</a>{% endif %}
+</div>
+<div class="card shadow-sm"><div class="table-responsive">
+<table class="table table-hover mb-0 align-middle">
+<thead><tr><th>Категория</th><th>Бренд / модель</th><th>Инв. №</th><th>Статус</th><th>Сотрудник</th><th>Место</th><th>Техосмотр</th>{% if current_user.is_admin %}<th></th>{% endif %}</tr></thead>
+<tbody>
+{% for item in items %}
+<tr class="{% if item.maintenance_is_stale %}table-warning{% endif %}">
+  <td>{{ item.category }}</td>
+  <td>{{ item.brand or '' }} {{ item.model or '' }}</td>
+  <td>{{ item.asset_tag or '—' }}</td>
+  <td>{{ statuses.get(item.status, item.status) }}</td>
+  <td>{{ item.assigned_user.full_name if item.assigned_user else '—' }}</td>
+  <td>{{ item.workplace.title if item.workplace else '—' }}</td>
+  <td>{{ item.last_maintenance_date|d }}</td>
+  {% if current_user.is_admin %}
+  <td class="text-end">
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('equipment_edit', item_id=item.id) }}">Редактировать</a>
+    <form method="post" action="{{ url_for('equipment_delete', item_id=item.id) }}" class="d-inline" onsubmit="return confirm('Удалить позицию техники?')">
+      <button class="btn btn-sm btn-outline-danger">Удалить</button>
+    </form>
+  </td>
+  {% endif %}
+</tr>
+{% endfor %}
+</tbody></table></div></div>
+{% endblock %}

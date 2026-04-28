@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}Картриджи{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3"><h1 class="h3 mb-0">Склад картриджей</h1><a class="btn btn-primary" href="{{ url_for('cartridge_create') }}">Добавить картридж</a></div>
+<div class="card shadow-sm"><div class="table-responsive"><table class="table table-hover mb-0 align-middle">
+<thead><tr><th>Название</th><th>Производитель</th><th>Модели принтеров</th><th>Остаток</th><th>Ожидают заправку</th><th></th></tr></thead>
+<tbody>{% for cartridge in cartridges %}<tr><td>{{ cartridge.name }}</td><td>{{ cartridge.vendor or '—' }}</td><td>{{ cartridge.printer_models or '—' }}</td><td>{{ cartridge.quantity_in_stock }}</td><td>{{ cartridge.quantity_waiting_refill }}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('cartridge_edit', cartridge_id=cartridge.id) }}">Редактировать</a> <form method="post" action="{{ url_for('cartridge_delete', cartridge_id=cartridge.id) }}" class="d-inline" onsubmit="return confirm('Удалить картридж?')"><button class="btn btn-sm btn-outline-danger">Удалить</button></form></td></tr>{% endfor %}</tbody>
+</table></div></div>
+{% endblock %}
