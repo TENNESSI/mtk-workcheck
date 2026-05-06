@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block title %}Соответствия экскурсоводов{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h3 mb-1">Соответствия экскурсоводов</h1>
+    <div class="text-muted">Используется при импорте PDF, если имя экскурсовода в файле отличается от ФИО на сайте.</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('calendar_view') }}">Назад к календарю</a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Добавить соответствие</h2>
+        <form method="post" class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Имя в PDF</label>
+            <input class="form-control" name="alias_name" placeholder="Например, Иванов И.И." required>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Сотрудник на сайте</label>
+            <select class="form-select" name="user_id" required>
+              <option value="">— Выберите сотрудника —</option>
+              {% for user in users %}
+                <option value="{{ user.id }}">{{ user.full_name }}{% if user.department %} — {{ user.department }}{% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary">Сохранить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h2 class="h5 mb-3">Текущие соответствия</h2>
+        {% if aliases %}
+          <div class="table-responsive">
+            <table class="table align-middle">
+              <thead>
+                <tr>
+                  <th>Имя в PDF</th>
+                  <th>Сотрудник на сайте</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for alias in aliases %}
+                <tr>
+                  <td>{{ alias.alias_name }}</td>
+                  <td>{{ alias.user.full_name }}</td>
+                  <td class="text-end">
+                    <form method="post" action="{{ url_for('excursion_guide_alias_delete', alias_id=alias.id) }}" onsubmit="return confirm('Удалить соответствие?')">
+                      <button class="btn btn-sm btn-outline-danger">Удалить</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-muted mb-0">Пока соответствий нет. Если в PDF указаны полные ФИО, система попробует сопоставить экскурсовода автоматически.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

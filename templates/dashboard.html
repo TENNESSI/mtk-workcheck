@@ -6,7 +6,12 @@
     <h1 class="h3 mb-1">Главная</h1>
     <p class="text-muted mb-0">Добро пожаловать, {{ current_user.full_name }}.</p>
   </div>
-  <a class="btn btn-primary" href="{{ url_for('event_create') }}">Добавить мероприятие</a>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if can_import_excursions %}
+      <a class="btn btn-outline-success" href="{{ url_for('calendar_view') }}">Импорт экскурсий</a>
+    {% endif %}
+    <a class="btn btn-primary" href="{{ url_for('event_create') }}">Добавить мероприятие</a>
+  </div>
 </div>
 
 {% if current_user.is_admin %}

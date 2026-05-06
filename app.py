@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import calendar
 import os
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, time, timedelta
 from functools import wraps
 from pathlib import Path
 
@@ -17,7 +18,9 @@ from flask_login import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import func, inspect, or_
+import pdfplumber
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "instance" / "app.db"
@@ -184,6 +187,45 @@ class CalendarEvent(db.Model):
         return bool(user.is_admin or self.created_by_id == user.id)
 
 
+class ExcursionItem(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    excursion_date = db.Column(db.Date, nullable=False, index=True)
+    starts_at = db.Column(db.Time, nullable=False)
+    client = db.Column(db.String(255), nullable=False)
+    action = db.Column(db.String(255), nullable=False)
+    guide_name = db.Column(db.String(150))
+    note = db.Column(db.Text)
+    source_filename = db.Column(db.String(255))
+    imported_by_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    guide_user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    imported_by = db.relationship("User", foreign_keys=[imported_by_id])
+    guide_user = db.relationship("User", foreign_keys=[guide_user_id])
+
+    @property
+    def starts_at_label(self) -> str:
+        return self.starts_at.strftime("%H:%M") if self.starts_at else "—"
+
+    @property
+    def guide_display_name(self) -> str:
+        if self.guide_user:
+            return self.guide_user.full_name
+        if self.guide_name:
+            return self.guide_name
+        return "Не указан"
+
+
+class ExcursionGuideAlias(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    alias_name = db.Column(db.String(150), nullable=False, unique=True)
+    alias_normalized = db.Column(db.String(150), nullable=False, unique=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    user = db.relationship("User")
+
+
 class Notification(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
@@ -256,6 +298,156 @@ def get_departments() -> list[str]:
         .all()
     )
     return [row[0] for row in rows if row[0]]
+
+
+def normalize_spaces(value: str | None) -> str:
+    return re.sub(r"\s+", " ", (value or "")).strip()
+
+
+def normalize_person_name(value: str | None) -> str:
+    value = normalize_spaces(value).lower().replace("ё", "е")
+    value = re.sub(r"[^а-яa-z0-9]+", " ", value)
+    return normalize_spaces(value)
+
+
+def build_name_variants(full_name: str | None) -> set[str]:
+    normalized_full = normalize_person_name(full_name)
+    variants = {normalized_full} if normalized_full else set()
+    parts = normalized_full.split()
+    if len(parts) >= 3:
+        last, first, middle = parts[0], parts[1], parts[2]
+        variants.add(normalize_person_name(f"{last} {first[0]} {middle[0]}"))
+        variants.add(normalize_person_name(f"{last} {first[0]}.{middle[0]}."))
+    elif len(parts) == 2:
+        last, first = parts[0], parts[1]
+        variants.add(normalize_person_name(f"{last} {first[0]}"))
+        variants.add(normalize_person_name(f"{last} {first[0]}."))
+    return {variant for variant in variants if variant}
+
+
+def user_can_import_excursions(user: User | None) -> bool:
+    if not user or not getattr(user, "is_authenticated", False):
+        return False
+    if user.is_admin:
+        return True
+    department = normalize_person_name(user.department)
+    return "экскурс" in department
+
+
+def match_excursion_guide_user(guide_name: str | None) -> User | None:
+    normalized = normalize_person_name(guide_name)
+    if not normalized:
+        return None
+
+    alias = ExcursionGuideAlias.query.filter_by(alias_normalized=normalized).first()
+    if alias:
+        return alias.user
+
+    users = User.query.filter(User.is_active_user.is_(True)).all()
+    matches = [user for user in users if normalized in build_name_variants(user.full_name)]
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def parse_excursions_pdf(file_storage) -> tuple[datetime.date, list[dict[str, object]]]:
+    parsed_date = None
+    excursions: list[dict[str, object]] = []
+    filename = secure_filename(file_storage.filename or "excursions.pdf") or "excursions.pdf"
+
+    date_pattern = re.compile(r"Дата:\s*(\d{2}\.\d{2}\.\d{4})")
+    file_storage.stream.seek(0)
+
+    with pdfplumber.open(file_storage.stream) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text() or ""
+            date_match = date_pattern.search(text)
+            if date_match:
+                page_date = datetime.strptime(date_match.group(1), "%d.%m.%Y").date()
+                if parsed_date and parsed_date != page_date:
+                    raise ValueError("В PDF найдены экскурсии на разные даты. Загружайте по одному дню за раз.")
+                parsed_date = page_date
+
+            for table in page.extract_tables() or []:
+                if not table or len(table) < 2:
+                    continue
+
+                header = [normalize_spaces(cell).lower() for cell in (table[0] or [])]
+                if "время" not in header or not any("клиент" in cell for cell in header) or "действие" not in header:
+                    continue
+
+                def column_index(keyword: str) -> int | None:
+                    for index, cell in enumerate(header):
+                        if keyword in cell:
+                            return index
+                    return None
+
+                time_idx = column_index("время")
+                client_idx = column_index("клиент")
+                action_idx = column_index("действие")
+                guide_idx = column_index("экскурсовод")
+                note_idx = column_index("примеч")
+
+                if time_idx is None or client_idx is None or action_idx is None:
+                    continue
+
+                for raw_row in table[1:]:
+                    row = list(raw_row) + [""] * (len(header) - len(raw_row))
+                    time_raw = normalize_spaces(row[time_idx])
+                    client = normalize_spaces(row[client_idx])
+                    action = normalize_spaces(row[action_idx])
+                    guide_name = normalize_spaces(row[guide_idx]) if guide_idx is not None else ""
+                    note = normalize_spaces(row[note_idx]) if note_idx is not None else ""
+
+                    if not time_raw or not client or not action:
+                        continue
+                    if not re.fullmatch(r"\d{2}:\d{2}", time_raw):
+                        continue
+
+                    starts_at = datetime.strptime(time_raw, "%H:%M").time()
+                    guide_user = match_excursion_guide_user(guide_name)
+                    excursions.append(
+                        {
+                            "excursion_date": parsed_date,
+                            "starts_at": starts_at,
+                            "client": client,
+                            "action": action,
+                            "guide_name": guide_name,
+                            "guide_user": guide_user,
+                            "note": note,
+                            "source_filename": filename,
+                        }
+                    )
+
+    if not parsed_date:
+        raise ValueError("Не удалось определить дату экскурсий из PDF.")
+    if not excursions:
+        raise ValueError("В PDF не найдена таблица экскурсий.")
+
+    for excursion in excursions:
+        excursion["excursion_date"] = parsed_date
+
+    excursions.sort(key=lambda item: (item["starts_at"], item["client"], item["action"]))
+    return parsed_date, excursions
+
+
+def replace_excursions_for_date(excursion_date, excursions: list[dict[str, object]], imported_by: User) -> int:
+    ExcursionItem.query.filter_by(excursion_date=excursion_date).delete(synchronize_session=False)
+    for excursion in excursions:
+        db.session.add(
+            ExcursionItem(
+                excursion_date=excursion_date,
+                starts_at=excursion["starts_at"],
+                client=excursion["client"],
+                action=excursion["action"],
+                guide_name=excursion["guide_name"],
+                guide_user=excursion["guide_user"],
+                note=excursion["note"],
+                source_filename=excursion["source_filename"],
+                imported_by=imported_by,
+            )
+        )
+    return len(excursions)
 
 
 def admin_required(view_func):
@@ -351,6 +543,7 @@ def register_context(app: Flask) -> None:
         return {
             "unread_notifications_count": unread_count,
             "departments": departments,
+            "can_import_excursions": user_can_import_excursions(current_user) if current_user.is_authenticated else False,
             "statuses": {
                 "in_stock": "На складе",
                 "assigned": "Выдано",
@@ -811,8 +1004,10 @@ def register_routes(app: Flask) -> None:
             calendar_scope = "all"
 
         month_calendar = calendar.Calendar(firstweekday=0).monthdatescalendar(year, month)
-        month_start = datetime(year, month, 1)
-        next_month = datetime(year + (month // 12), (month % 12) + 1, 1)
+        visible_start_date = month_calendar[0][0]
+        visible_end_date = month_calendar[-1][-1]
+        visible_start = datetime.combine(visible_start_date, time.min)
+        visible_end = datetime.combine(visible_end_date + timedelta(days=1), time.min)
 
         query = (
             CalendarEvent.query.join(
@@ -820,7 +1015,7 @@ def register_routes(app: Flask) -> None:
                 event_participants.c.event_id == CalendarEvent.id,
                 isouter=True,
             )
-            .filter(CalendarEvent.starts_at >= month_start, CalendarEvent.starts_at < next_month)
+            .filter(CalendarEvent.starts_at >= visible_start, CalendarEvent.starts_at < visible_end)
         )
 
         if current_user.is_admin:
@@ -836,15 +1031,22 @@ def register_routes(app: Flask) -> None:
             else:
                 query = query.filter(or_(CalendarEvent.is_shared.is_(True), CalendarEvent.created_by_id == current_user.id))
 
-        events = (
-            query.distinct()
-            .order_by(CalendarEvent.starts_at.asc(), CalendarEvent.title.asc())
-            .all()
-        )
-
+        events = query.distinct().order_by(CalendarEvent.starts_at.asc(), CalendarEvent.title.asc()).all()
         events_by_day: dict = {}
         for event in events:
             events_by_day.setdefault(event.starts_at.date(), []).append(event)
+
+        excursions = (
+            ExcursionItem.query.filter(
+                ExcursionItem.excursion_date >= visible_start_date,
+                ExcursionItem.excursion_date <= visible_end_date,
+            )
+            .order_by(ExcursionItem.excursion_date.asc(), ExcursionItem.starts_at.asc(), ExcursionItem.id.asc())
+            .all()
+        )
+        excursions_by_day: dict = {}
+        for excursion in excursions:
+            excursions_by_day.setdefault(excursion.excursion_date, []).append(excursion)
 
         prev_month = month - 1 or 12
         prev_year = year - 1 if month == 1 else year
@@ -856,6 +1058,7 @@ def register_routes(app: Flask) -> None:
             "calendar.html",
             month_calendar=month_calendar,
             events_by_day=events_by_day,
+            excursions_by_day=excursions_by_day,
             year=year,
             month=month,
             month_name=calendar.month_name[month],
@@ -866,6 +1069,77 @@ def register_routes(app: Flask) -> None:
             calendar_scope=calendar_scope,
             users=users,
         )
+
+    @app.route("/calendar/excursions/import", methods=["POST"])
+    @login_required
+    def excursion_import():
+        if not user_can_import_excursions(current_user):
+            abort(403)
+
+        uploaded_file = request.files.get("excursions_pdf")
+        if not uploaded_file or not uploaded_file.filename:
+            flash("Прикрепите PDF-файл с расписанием экскурсий.", "danger")
+            return redirect(url_for("calendar_view", month=request.form.get("month"), year=request.form.get("year"), scope=request.form.get("scope", "all")))
+
+        filename = uploaded_file.filename.lower()
+        if not filename.endswith(".pdf"):
+            flash("Нужен именно PDF-файл с расписанием экскурсий.", "danger")
+            return redirect(url_for("calendar_view", month=request.form.get("month"), year=request.form.get("year"), scope=request.form.get("scope", "all")))
+
+        try:
+            excursion_date, excursions = parse_excursions_pdf(uploaded_file)
+            imported_count = replace_excursions_for_date(excursion_date, excursions, current_user)
+            db.session.commit()
+        except Exception as exc:
+            db.session.rollback()
+            flash(f"Не удалось импортировать экскурсии: {exc}", "danger")
+            return redirect(url_for("calendar_view", month=request.form.get("month"), year=request.form.get("year"), scope=request.form.get("scope", "all")))
+
+        flash(
+            f"Импорт выполнен: {imported_count} экскурсий на {excursion_date.strftime('%d.%m.%Y')}. Если на эту дату уже были экскурсии, они перезаписаны.",
+            "success",
+        )
+        return redirect(url_for("calendar_view", month=excursion_date.month, year=excursion_date.year, scope=request.form.get("scope", "all")))
+
+    @app.route("/excursion-guide-aliases", methods=["GET", "POST"])
+    @admin_required
+    def excursion_guide_aliases():
+        if request.method == "POST":
+            alias_name = normalize_spaces(request.form.get("alias_name"))
+            user_id = request.form.get("user_id")
+            normalized = normalize_person_name(alias_name)
+            selected_user = db.session.get(User, int(user_id)) if user_id and user_id.isdigit() else None
+
+            if not alias_name or not normalized:
+                flash("Укажите имя экскурсовода из PDF.", "danger")
+            elif not selected_user:
+                flash("Выберите сотрудника сайта, которому соответствует это имя.", "danger")
+            elif ExcursionGuideAlias.query.filter(ExcursionGuideAlias.alias_normalized == normalized).first():
+                flash("Такое соответствие уже существует.", "warning")
+            else:
+                db.session.add(
+                    ExcursionGuideAlias(
+                        alias_name=alias_name,
+                        alias_normalized=normalized,
+                        user=selected_user,
+                    )
+                )
+                db.session.commit()
+                flash("Соответствие экскурсовода сохранено.", "success")
+                return redirect(url_for("excursion_guide_aliases"))
+
+        aliases = ExcursionGuideAlias.query.order_by(ExcursionGuideAlias.alias_name.asc()).all()
+        users = User.query.order_by(User.department.asc().nullsfirst(), User.full_name.asc()).all()
+        return render_template("excursion_aliases.html", aliases=aliases, users=users)
+
+    @app.route("/excursion-guide-aliases/<int:alias_id>/delete", methods=["POST"])
+    @admin_required
+    def excursion_guide_alias_delete(alias_id: int):
+        alias = db.session.get(ExcursionGuideAlias, alias_id) or abort(404)
+        db.session.delete(alias)
+        db.session.commit()
+        flash("Соответствие удалено.", "info")
+        return redirect(url_for("excursion_guide_aliases"))
 
     @app.route("/calendar/events/create", methods=["GET", "POST"])
     @login_required
@@ -1008,4 +1282,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(debug=True)

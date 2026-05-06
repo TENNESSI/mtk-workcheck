@@ -10,6 +10,12 @@
     <a class="btn btn-outline-secondary" href="{{ url_for('calendar_view', month=prev_month, year=prev_year, scope=calendar_scope) }}">← Предыдущий</a>
     <a class="btn btn-outline-secondary" href="{{ url_for('calendar_view', scope=calendar_scope) }}">Сегодня</a>
     <a class="btn btn-outline-secondary" href="{{ url_for('calendar_view', month=next_month_num, year=next_year, scope=calendar_scope) }}">Следующий →</a>
+    {% if can_import_excursions %}
+      <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#excursionImportModal">Импорт экскурсий</button>
+    {% endif %}
+    {% if current_user.is_admin %}
+      <a class="btn btn-outline-dark" href="{{ url_for('excursion_guide_aliases') }}">Соответствия экскурсоводов</a>
+    {% endif %}
     <a class="btn btn-primary" href="{{ url_for('event_create') }}">Добавить мероприятие</a>
   </div>
 </div>
@@ -27,7 +33,10 @@
   {% for week in month_calendar %}
     {% for day in week %}
       {% set day_events = events_by_day.get(day, []) %}
-      {% set modal_id = 'dayEvents' ~ day.strftime('%Y%m%d') %}
+      {% set day_excursions = excursions_by_day.get(day, []) %}
+      {% set event_modal_id = 'dayEvents' ~ day.strftime('%Y%m%d') %}
+      {% set excursion_modal_id = 'dayExcursions' ~ day.strftime('%Y%m%d') %}
+      {% set visible_events_limit = 2 if day_excursions|length else 3 %}
       <div class="calendar-day {% if day.month != month %}calendar-day-muted{% endif %}">
         <div class="calendar-day-header">
           <div class="calendar-day-number">{{ day.day }}</div>
@@ -35,8 +44,19 @@
             <span class="badge text-bg-light">{{ day_events|length }}</span>
           {% endif %}
         </div>
+
+        <div class="calendar-excursion-summary mb-2">
+          {% if day_excursions|length %}
+            <button type="button" class="btn btn-sm btn-outline-success excursion-count-btn" data-bs-toggle="modal" data-bs-target="#{{ excursion_modal_id }}">
+              Экскурсий: {{ day_excursions|length }}
+            </button>
+          {% else %}
+            <div class="small text-muted">Экскурсий: 0</div>
+          {% endif %}
+        </div>
+
         <div class="calendar-day-events">
-          {% for event in day_events[:3] %}
+          {% for event in day_events[:visible_events_limit] %}
             <a href="{{ url_for('event_detail', event_id=event.id) }}" class="event-card-mini text-decoration-none {% if event.is_shared %}event-shared{% else %}event-personal{% endif %}">
               <div class="event-title fw-semibold text-dark">{{ event.title }}</div>
               <div class="small text-muted event-meta-row">{{ event.location or 'Без локации' }}</div>
@@ -45,16 +65,16 @@
             </a>
           {% endfor %}
 
-          {% if day_events|length > 3 %}
-            <button type="button" class="btn btn-sm btn-outline-secondary calendar-more-btn" data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
-              Ещё {{ day_events|length - 3 }}
+          {% if day_events|length > visible_events_limit %}
+            <button type="button" class="btn btn-sm btn-outline-secondary calendar-more-btn" data-bs-toggle="modal" data-bs-target="#{{ event_modal_id }}">
+              Ещё {{ day_events|length - visible_events_limit }}
             </button>
           {% endif %}
         </div>
       </div>
 
-      {% if day_events|length > 3 %}
-      <div class="modal fade" id="{{ modal_id }}" tabindex="-1" aria-hidden="true">
+      {% if day_events|length > visible_events_limit %}
+      <div class="modal fade" id="{{ event_modal_id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
           <div class="modal-content">
             <div class="modal-header">
@@ -75,6 +95,51 @@
         </div>
       </div>
       {% endif %}
+
+      {% if day_excursions|length %}
+      <div class="modal fade" id="{{ excursion_modal_id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <div>
+                <h2 class="modal-title fs-5">Экскурсии на {{ day.strftime('%d.%m.%Y') }}</h2>
+                <div class="small text-muted">Всего экскурсий: {{ day_excursions|length }}</div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+              <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th>Время</th>
+                      <th>Клиент</th>
+                      <th>Действие</th>
+                      <th>Экскурсовод</th>
+                      <th>Примечание</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for excursion in day_excursions %}
+                    <tr>
+                      <td class="text-nowrap">{{ excursion.starts_at_label }}</td>
+                      <td>{{ excursion.client }}</td>
+                      <td>{{ excursion.action }}</td>
+                      <td>{{ excursion.guide_display_name }}</td>
+                      <td>{{ excursion.note or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <div class="small text-muted">
+                Импортировано: {{ day_excursions[0].created_at|dt }}{% if day_excursions[0].imported_by %} · {{ day_excursions[0].imported_by.full_name }}{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
     {% endfor %}
   {% endfor %}
 </div>
@@ -86,4 +151,35 @@
     <span>Во вкладке «Мой календарь» показываются все события, где вы создатель, ответственный или участник.</span>
   </div>
 </div>
+
+{% if can_import_excursions %}
+<div class="modal fade" id="excursionImportModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('excursion_import') }}" enctype="multipart/form-data">
+        <div class="modal-header">
+          <h2 class="modal-title fs-5">Импорт экскурсий из PDF</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="month" value="{{ month }}">
+          <input type="hidden" name="year" value="{{ year }}">
+          <input type="hidden" name="scope" value="{{ calendar_scope }}">
+          <div class="mb-3">
+            <label class="form-label">PDF-файл с расписанием экскурсий</label>
+            <input type="file" class="form-control" name="excursions_pdf" accept="application/pdf,.pdf" required>
+          </div>
+          <div class="small text-muted">
+            Если в системе уже есть экскурсии на дату из этого PDF, они будут полностью перезаписаны.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button class="btn btn-success">Импортировать</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
