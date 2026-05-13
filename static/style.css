@@ -21,8 +21,14 @@ body { background: #f5f7fb; }
   box-shadow: 0 .125rem .5rem rgba(0,0,0,.06);
   display: flex;
   flex-direction: column;
+  border: 2px solid transparent;
+  overflow: hidden;
 }
 .calendar-day-muted { opacity: .5; }
+.calendar-day-today {
+  border-color: #0d6efd;
+  box-shadow: 0 .125rem .75rem rgba(13,110,253,.18);
+}
 .calendar-day-header {
   display: flex;
   align-items: center;
@@ -37,8 +43,25 @@ body { background: #f5f7fb; }
   display: flex;
   flex-direction: column;
   gap: .4rem;
-  flex: 1;
-  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 118px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: .2rem;
+}
+.calendar-day-events-scroll {
+  max-height: 118px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: .2rem; 
+}
+.calendar-day-events-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.calendar-day-events-scroll::-webkit-scrollbar-thumb {
+  background: rgba(108, 117, 125, .45);
+  border-radius: 999px;
 }
 .calendar-excursion-summary {
   min-height: 2rem;
@@ -57,6 +80,27 @@ body { background: #f5f7fb; }
 }
 .event-card-mini:hover {
   background: #eef2f7;
+}
+.event-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: .45rem;
+  margin-bottom: .1rem;
+}
+.event-index {
+  min-width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: rgba(13,110,253,.12);
+  color: #0d6efd;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .75rem;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: .05rem;
 }
 .event-personal { border-left-color: #6f42c1; }
 .event-shared { border-left-color: #0d6efd; }
@@ -132,7 +176,9 @@ body { background: #f5f7fb; }
     min-height: auto;
     height: auto;
   }
-  .calendar-day-events {
+  .calendar-day-events,
+  .calendar-day-events-scroll {
     overflow: visible;
+    max-height: none;
   }
 }

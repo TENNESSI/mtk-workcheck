@@ -34,10 +34,8 @@
     {% for day in week %}
       {% set day_events = events_by_day.get(day, []) %}
       {% set day_excursions = excursions_by_day.get(day, []) %}
-      {% set event_modal_id = 'dayEvents' ~ day.strftime('%Y%m%d') %}
       {% set excursion_modal_id = 'dayExcursions' ~ day.strftime('%Y%m%d') %}
-      {% set visible_events_limit = 2 if day_excursions|length else 3 %}
-      <div class="calendar-day {% if day.month != month %}calendar-day-muted{% endif %}">
+      <div class="calendar-day {% if day.month != month %}calendar-day-muted{% endif %} {% if day == today_date %}calendar-day-today{% endif %}">
         <div class="calendar-day-header">
           <div class="calendar-day-number">{{ day.day }}</div>
           {% if day_events|length %}
@@ -55,46 +53,20 @@
           {% endif %}
         </div>
 
-        <div class="calendar-day-events">
-          {% for event in day_events[:visible_events_limit] %}
+        <div class="calendar-day-events {% if day_events|length > 2 %}calendar-day-events-scroll{% endif %}">
+          {% for event in day_events %}
             <a href="{{ url_for('event_detail', event_id=event.id) }}" class="event-card-mini text-decoration-none {% if event.is_shared %}event-shared{% else %}event-personal{% endif %}">
-              <div class="event-title fw-semibold text-dark">{{ event.title }}</div>
+              <div class="event-card-head">
+                <span class="event-index">{{ loop.index }}</span>
+                <div class="event-title fw-semibold text-dark">{{ event.title }}</div>
+              </div>
               <div class="small text-muted event-meta-row">{{ event.location or 'Без локации' }}</div>
               <div class="small text-muted event-meta-row">{{ event.starts_at|dt('%H:%M') }}–{{ event.ends_at|dt('%H:%M') }}</div>
               <div class="small text-muted event-meta-row">{{ event.responsible_user.full_name if event.responsible_user else 'Не назначен' }}</div>
             </a>
           {% endfor %}
-
-          {% if day_events|length > visible_events_limit %}
-            <button type="button" class="btn btn-sm btn-outline-secondary calendar-more-btn" data-bs-toggle="modal" data-bs-target="#{{ event_modal_id }}">
-              Ещё {{ day_events|length - visible_events_limit }}
-            </button>
-          {% endif %}
         </div>
       </div>
-
-      {% if day_events|length > visible_events_limit %}
-      <div class="modal fade" id="{{ event_modal_id }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-scrollable">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h2 class="modal-title fs-5">Мероприятия на {{ day.strftime('%d.%m.%Y') }}</h2>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
-            </div>
-            <div class="modal-body d-flex flex-column gap-2">
-              {% for event in day_events %}
-                <a href="{{ url_for('event_detail', event_id=event.id) }}" class="event-card-mini text-decoration-none {% if event.is_shared %}event-shared{% else %}event-personal{% endif %}">
-                  <div class="event-title fw-semibold text-dark">{{ event.title }}</div>
-                  <div class="small text-muted event-meta-row">{{ event.location or 'Без локации' }}</div>
-                  <div class="small text-muted event-meta-row">{{ event.starts_at|dt('%H:%M') }}–{{ event.ends_at|dt('%H:%M') }}</div>
-                  <div class="small text-muted event-meta-row">{{ event.responsible_user.full_name if event.responsible_user else 'Не назначен' }}</div>
-                </a>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-      </div>
-      {% endif %}
 
       {% if day_excursions|length %}
       <div class="modal fade" id="{{ excursion_modal_id }}" tabindex="-1" aria-hidden="true">

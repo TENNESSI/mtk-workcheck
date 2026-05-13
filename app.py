@@ -825,7 +825,7 @@ def register_routes(app: Flask) -> None:
         return redirect(url_for("workplaces_list"))
 
     @app.route("/inventory")
-    @login_required
+    @admin_required
     def inventory_list():
         query = EquipmentItem.query
         if not current_user.is_admin:
@@ -1068,6 +1068,7 @@ def register_routes(app: Flask) -> None:
             next_year=next_year,
             calendar_scope=calendar_scope,
             users=users,
+            today_date=today,
         )
 
     @app.route("/calendar/excursions/import", methods=["POST"])
