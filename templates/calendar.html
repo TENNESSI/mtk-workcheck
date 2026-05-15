@@ -35,7 +35,8 @@
       {% set day_events = events_by_day.get(day, []) %}
       {% set day_excursions = excursions_by_day.get(day, []) %}
       {% set excursion_modal_id = 'dayExcursions' ~ day.strftime('%Y%m%d') %}
-      <div class="calendar-day {% if day.month != month %}calendar-day-muted{% endif %} {% if day == today_date %}calendar-day-today{% endif %}">
+      {% set event_modal_id = 'dayEvents' ~ day.strftime('%Y%m%d') %}
+      <div class="calendar-day calendar-day-open-modal {% if day.month != month %}calendar-day-muted{% endif %} {% if day == today_date %}calendar-day-today{% endif %}" data-bs-toggle="modal" data-bs-target="#{{ event_modal_id }}" aria-label="Открыть мероприятия за {{ day.strftime('%d.%m.%Y') }}">
         <div class="calendar-day-header">
           <div class="calendar-day-number">{{ day.day }}</div>
           {% if day_events|length %}
@@ -45,7 +46,7 @@
 
         <div class="calendar-excursion-summary mb-2">
           {% if day_excursions|length %}
-            <button type="button" class="btn btn-sm btn-outline-success excursion-count-btn" data-bs-toggle="modal" data-bs-target="#{{ excursion_modal_id }}">
+            <button type="button" class="btn btn-sm btn-outline-success excursion-count-btn stop-day-modal" data-bs-toggle="modal" data-bs-target="#{{ excursion_modal_id }}">
               Экскурсий: {{ day_excursions|length }}
             </button>
           {% else %}
@@ -55,7 +56,7 @@
 
         <div class="calendar-day-events {% if day_events|length > 2 %}calendar-day-events-scroll{% endif %}">
           {% for event in day_events %}
-            <a href="{{ url_for('event_detail', event_id=event.id) }}" class="event-card-mini text-decoration-none {% if event.is_shared %}event-shared{% else %}event-personal{% endif %}">
+            <a href="{{ url_for('event_detail', event_id=event.id) }}" class="event-card-mini stop-day-modal text-decoration-none {% if event.is_shared %}event-shared{% else %}event-personal{% endif %}">
               <div class="event-card-head">
                 <span class="event-index">{{ loop.index }}</span>
                 <div class="event-title fw-semibold text-dark">{{ event.title }}</div>
@@ -65,6 +66,59 @@
               <div class="small text-muted event-meta-row">{{ event.responsible_user.full_name if event.responsible_user else 'Не назначен' }}</div>
             </a>
           {% endfor %}
+        </div>
+      </div>
+
+      <div class="modal fade" id="{{ event_modal_id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <div>
+                <h2 class="modal-title fs-5">Мероприятия на {{ day.strftime('%d.%m.%Y') }}</h2>
+                <div class="small text-muted">Всего мероприятий: {{ day_events|length }}</div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+            </div>
+            <div class="modal-body">
+              {% if day_events %}
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle table-hover">
+                    <thead>
+                      <tr>
+                        <th style="width: 60px;">№</th>
+                        <th>Название</th>
+                        <th>Локация</th>
+                        <th>Время</th>
+                        <th>Ответственный</th>
+                        <th style="width: 120px;">Тип</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for event in day_events %}
+                      <tr class="day-event-row" data-href="{{ url_for('event_detail', event_id=event.id) }}">
+                        <td>{{ loop.index }}</td>
+                        <td class="fw-semibold">{{ event.title }}</td>
+                        <td>{{ event.location or '—' }}</td>
+                        <td class="text-nowrap">{{ event.starts_at|dt('%H:%M') }}–{{ event.ends_at|dt('%H:%M') }}</td>
+                        <td>{{ event.responsible_user.full_name if event.responsible_user else 'Не назначен' }}</td>
+                        <td>
+                          {% if event.is_shared %}
+                            <span class="badge text-bg-primary">Общее</span>
+                          {% else %}
+                            <span class="badge text-bg-secondary">Личное</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="small text-muted">Нажмите на строку, чтобы открыть карточку мероприятия.</div>
+              {% else %}
+                <div class="alert alert-light border mb-0">На этот день мероприятий нет.</div>
+              {% endif %}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -154,4 +208,24 @@
   </div>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll('.stop-day-modal').forEach((element) => {
+    element.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+  });
+
+  document.querySelectorAll('.day-event-row').forEach((row) => {
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => {
+      const href = row.dataset.href;
+      if (href) {
+        window.location.href = href;
+      }
+    });
+  });
+</script>
 {% endblock %}

@@ -24,6 +24,9 @@ body { background: #f5f7fb; }
   border: 2px solid transparent;
   overflow: hidden;
 }
+.calendar-day-open-modal {
+  cursor: pointer;
+}
 .calendar-day-muted { opacity: .5; }
 .calendar-day-today {
   border-color: #0d6efd;
@@ -45,16 +48,13 @@ body { background: #f5f7fb; }
   gap: .4rem;
   flex: 1 1 auto;
   min-height: 0;
-  max-height: 118px;
+  overflow: hidden;
+}
+.calendar-day-events-scroll {
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: .2rem;
-}
-.calendar-day-events-scroll {
-  max-height: 118px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: .2rem; 
 }
 .calendar-day-events-scroll::-webkit-scrollbar {
   width: 6px;
@@ -118,8 +118,11 @@ body { background: #f5f7fb; }
   text-overflow: ellipsis;
   line-height: 1.2;
 }
-.calendar-more-btn {
-  margin-top: auto;
+.day-event-row {
+  cursor: pointer;
+}
+.day-event-row:hover > * {
+  background: rgba(13, 110, 253, .05) !important;
 }
 .legend-dot {
   width: 12px;
